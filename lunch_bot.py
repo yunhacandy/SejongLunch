@@ -6,6 +6,11 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
+import ssl
+from dotenv import load_dotenv
+
+ssl._create_default_https_context = ssl.create_default_context
+load_dotenv()
 
 # ─────────────────────────────────────────
 # Slack 앱 초기화
@@ -112,7 +117,7 @@ def pick_menus(pool):
 # ─────────────────────────────────────────
 # /점심 슬래시 커맨드
 # ─────────────────────────────────────────
-@app.command("/점심")
+@app.command("/학식")
 def handle_lunch(ack, respond):
     ack()
 
