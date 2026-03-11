@@ -1,16 +1,70 @@
+import logging
 import os
 import random
 import json
 import requests
-from datetime import datetime
+import ssl
+import schedule
+import time
+import threading
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
-import ssl
 from dotenv import load_dotenv
 
 ssl._create_default_https_context = ssl.create_default_context
 load_dotenv()
+
+
+
+# ─────────────────────────────────────────
+# 로깅 설정
+# ─────────────────────────────────────────
+file_handler = logging.FileHandler("lunch_bot.log")
+file_handler.setLevel(logging.WARNING)  # 파일엔 WARNING 이상만 저장
+file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(logging.INFO)   # 터미널엔 INFO 이상 출력
+stream_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+
+logging.basicConfig(level=logging.INFO, handlers=[file_handler, stream_handler])
+logger = logging.getLogger(__name__)
+
+
+# ─────────────────────────────────────────
+# 2일 지난 로그 자동 삭제 (매일 자정)
+# ─────────────────────────────────────────
+def cleanup_old_logs():
+    log_file = "lunch_bot.log"
+    if not os.path.exists(log_file):
+        return
+
+    cutoff = datetime.now() - timedelta(days=7)
+    kept_lines = []
+
+    with open(log_file, "r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                # 로그 맨 앞의 날짜 파싱
+                log_date = datetime.strptime(line[:19], "%Y-%m-%d %H:%M:%S")
+                if log_date >= cutoff:
+                    kept_lines.append(line)
+            except ValueError:
+                kept_lines.append(line)  # 날짜 파싱 실패한 줄은 유지
+
+    with open(log_file, "w", encoding="utf-8") as f:
+        f.writelines(kept_lines)
+
+    logger.info("로그 정리 완료 - %s 이전 로그 삭제", cutoff.strftime("%Y-%m-%d"))
+
+
+def schedule_cleanup():
+    schedule.every().day.at("00:00").do(cleanup_old_logs)
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
 
 # ─────────────────────────────────────────
 # Slack 앱 초기화
@@ -22,7 +76,6 @@ app = App(token=os.environ["SLACK_BOT_TOKEN"])
 # ─────────────────────────────────────────
 with open("menus.json", "r", encoding="utf-8") as f:
     FIXED_MENUS = json.load(f)
-
 
 # ─────────────────────────────────────────
 # 계절밥상 오늘 중식 메뉴 크롤링
@@ -150,5 +203,6 @@ def handle_lunch(ack, respond):
 # 앱 실행
 # ─────────────────────────────────────────
 if __name__ == "__main__":
+    threading.Thread(target=schedule_cleanup, daemon=True).start()
     handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
     handler.start()
