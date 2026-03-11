@@ -16,8 +16,6 @@ from dotenv import load_dotenv
 ssl._create_default_https_context = ssl.create_default_context
 load_dotenv()
 
-
-
 # ─────────────────────────────────────────
 # 로깅 설정
 # ─────────────────────────────────────────
@@ -31,7 +29,6 @@ stream_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(mes
 
 logging.basicConfig(level=logging.INFO, handlers=[file_handler, stream_handler])
 logger = logging.getLogger(__name__)
-
 
 # ─────────────────────────────────────────
 # 2일 지난 로그 자동 삭제 (매일 자정)
@@ -116,7 +113,6 @@ def fetch_gyejeol_lunch():
 
     return []
 
-
 # ─────────────────────────────────────────
 # 전체 메뉴 풀 구성
 # ─────────────────────────────────────────
@@ -149,7 +145,6 @@ def build_menu_pool():
 
     return pool
 
-
 # ─────────────────────────────────────────
 # 식당별로 각 1개씩, 고정 순서로 추천
 # ─────────────────────────────────────────
@@ -166,9 +161,8 @@ def pick_menus(pool):
 
     return picks[:3]
 
-
 # ─────────────────────────────────────────
-# /점심 슬래시 커맨드
+# /학식 슬래시 커맨드
 # ─────────────────────────────────────────
 @app.command("/학식")
 def handle_lunch(ack, respond):
@@ -197,7 +191,6 @@ def handle_lunch(ack, respond):
 
     lines.append("\n맛있는 점심 되세요! 😋")
     respond("\n".join(lines))
-
 
 # ─────────────────────────────────────────
 # 앱 실행
