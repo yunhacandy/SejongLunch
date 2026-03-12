@@ -119,7 +119,6 @@ def fetch_gyejeol_lunch():
             if menu_div:
                 raw = menu_div.get_text(separator=" ")
                 items = [m.strip() for m in raw.split("·") if m.strip()]
-                logger.info("계절밥상 중식 파싱 성공: %s", items)
                 _cache["date"] = today  # 캐시 저장
                 _cache["menus"] = items
                 return items
@@ -197,7 +196,6 @@ def handle_lunch(ack, respond, body):
         return
 
     picks = pick_menus(pool)
-    logger.info("추천 메뉴: %s", [p["name"] for p in picks])
 
     today_str = datetime.now().strftime("%m월 %d일")
     lines = [f"🍱 *{today_str} 오늘의 점심 추천 3선!*\n"]
