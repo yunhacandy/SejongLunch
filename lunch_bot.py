@@ -183,8 +183,10 @@ def pick_menus(pool):
 # /학식 슬래시 커맨드
 # ─────────────────────────────────────────
 @app.command("/학식")
-def handle_lunch(ack, respond):
+def handle_lunch(ack, respond, body):
     ack()
+    user_name = body.get("user_name", "unknown")
+    logger.info("/학식 요청 - 유저: %s", user_name)
 
     pool = build_menu_pool()
 
