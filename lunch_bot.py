@@ -169,11 +169,15 @@ def handle_lunch(ack, respond):
     ack()
 
     pool = build_menu_pool()
-    if len(pool) < 3:
+
+    # 계절밥상 없어도 2개 식당으로 추천
+    if len(pool) == 0:
+        logger.error("메뉴 풀이 비어있음")
         respond("메뉴를 불러오는 데 실패했어요 😢 잠시 후 다시 시도해주세요.")
         return
 
     picks = pick_menus(pool)
+    logger.info("추천 메뉴: %s", [p["name"] for p in picks])
 
     today_str = datetime.now().strftime("%m월 %d일")
     lines = [f"🍱 *{today_str} 오늘의 점심 추천 3선!*\n"]
@@ -187,7 +191,11 @@ def handle_lunch(ack, respond):
         if pick["composition"]:
             chunks = [pick["composition"][j:j+3] for j in range(0, len(pick["composition"]), 3)]
             composition_str = "\n      ".join(" · ".join(chunk) for chunk in chunks)
-            lines.append(f"      {composition_str}")
+            lines.append(f"      _{composition_str}_")
+
+    # 계절밥상 없는 날 안내
+    if not any(p["restaurant"] == "계절밥상" for p in picks):
+        lines.append("\n_※ 오늘은 계절밥상 메뉴가 없어요._")
 
     lines.append("\n맛있는 점심 되세요! 😋")
     respond("\n".join(lines))
