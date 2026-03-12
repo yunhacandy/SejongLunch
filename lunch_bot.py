@@ -77,8 +77,17 @@ with open("menus.json", "r", encoding="utf-8") as f:
 # ─────────────────────────────────────────
 # 계절밥상 오늘 중식 메뉴 크롤링
 # ─────────────────────────────────────────
+_cache = {"date": None, "menus": []}
+
 def fetch_gyejeol_lunch():
     today = datetime.now().strftime("%Y%m%d")
+
+    if _cache["date"] == today:
+        logger.info("계절밥상 캐시 hit - %s", today)
+        return _cache["menus"]
+
+    logger.info("계절밥상 메뉴 크롤링 시작 - %s", today)
+
     url = "https://www.sejong.ac.kr/kor/unilife/cafeteria-info.do"
     params = {"mode": "getMenuList", "cafeCd": "202"}
 
