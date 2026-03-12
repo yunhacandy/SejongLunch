@@ -20,7 +20,7 @@ load_dotenv()
 # 로깅 설정
 # ─────────────────────────────────────────
 file_handler = logging.FileHandler("lunch_bot.log")
-file_handler.setLevel(logging.WARNING)  # 파일엔 WARNING 이상만 저장
+file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
 
 stream_handler = logging.StreamHandler()
@@ -87,7 +87,6 @@ def fetch_gyejeol_lunch():
         return _cache["menus"]
 
     logger.info("계절밥상 메뉴 크롤링 시작 - %s", today)
-
     url = "https://www.sejong.ac.kr/kor/unilife/cafeteria-info.do"
     params = {"mode": "getMenuList", "cafeCd": "202"}
 
@@ -96,7 +95,7 @@ def fetch_gyejeol_lunch():
         res.raise_for_status()
         data = res.json()
     except Exception as e:
-        print(f"[계절밥상 API 오류] {e}")
+        logger.error("계절밥상 API 호출 실패: %s", e)  # print → logger
         return []
 
     today_item = next(
@@ -104,6 +103,9 @@ def fetch_gyejeol_lunch():
         None,
     )
     if not today_item:
+        logger.warning("계절밥상 오늘(%s) 메뉴 없음", today)
+        _cache["date"] = today  # 캐시 저장
+        _cache["menus"] = []
         return []
 
     html = today_item.get("menuInfo", "")
@@ -117,8 +119,15 @@ def fetch_gyejeol_lunch():
             if menu_div:
                 raw = menu_div.get_text(separator=" ")
                 items = [m.strip() for m in raw.split("·") if m.strip()]
+                logger.info("계절밥상 중식 파싱 성공: %s", items)
+                _cache["date"] = today  # 캐시 저장
+                _cache["menus"] = items
                 return items
             break
+
+    logger.warning("계절밥상 중식 블록 파싱 실패")
+    _cache["date"] = today  # 캐시 저장
+    _cache["menus"] = []
 
     return []
 
