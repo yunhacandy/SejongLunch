@@ -209,7 +209,7 @@ def handle_lunch(ack, respond, body):
         if pick["composition"]:
             chunks = [pick["composition"][j:j+3] for j in range(0, len(pick["composition"]), 3)]
             composition_str = "\n      ".join(" · ".join(chunk) for chunk in chunks)
-            lines.append(f"      _{composition_str}_")
+            lines.append(f"      {composition_str}")
 
     # 계절밥상 없는 날 안내
     if not any(p["restaurant"] == "계절밥상" for p in picks):
