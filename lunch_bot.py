@@ -215,6 +215,7 @@ def handle_lunch(ack, respond, body):
     if not any(p["restaurant"] == "계절밥상" for p in picks):
         lines.append("\n_※ 오늘은 계절밥상 메뉴가 없어요._")
 
+    lines.append("\n※ 메뉴 구성 및 가격은 실제와 다를 수 있어요.")
     lines.append("\n맛있는 점심 되세요! 😋")
     respond("\n".join(lines))
 
