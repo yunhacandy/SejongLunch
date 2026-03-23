@@ -95,7 +95,7 @@ def fetch_gyejeol_lunch():
         res.raise_for_status()
         data = res.json()
     except Exception as e:
-        logger.error("계절밥상 API 호출 실패: %s", e)  # print → logger
+        logger.error("계절밥상 API 호출 실패: %s", e)
         return []
 
     today_item = next(
@@ -213,7 +213,7 @@ def handle_lunch(ack, respond, body):
 
     # 계절밥상 없는 날 안내
     if not any(p["restaurant"] == "계절밥상" for p in picks):
-        lines.append("\n_※ 오늘은 계절밥상 메뉴가 없어요._")
+        lines.append("\n※ 오늘 계절밥상 메뉴가 홈페이지에 없어요.")
 
     lines.append("\n※ 메뉴 구성 및 가격은 실제와 다를 수 있어요.")
     lines.append("\n맛있는 점심 되세요! 😋")
