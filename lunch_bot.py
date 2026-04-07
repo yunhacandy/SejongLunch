@@ -8,7 +8,6 @@ import schedule
 import time
 import threading
 from datetime import datetime, timedelta
-from bs4 import BeautifulSoup
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 from dotenv import load_dotenv
@@ -80,7 +79,7 @@ with open("menus.json", "r", encoding="utf-8") as f:
 _cache = {"date": None, "menus": []}
 
 def fetch_gyejeol_lunch():
-    today = datetime.now().strftime("%Y%m%d")
+    today = datetime.now().strftime("%Y-%m-%d")  # 형식 변경
 
     if _cache["date"] == today:
         logger.info("계절밥상 캐시 hit - %s", today)
@@ -88,7 +87,7 @@ def fetch_gyejeol_lunch():
 
     logger.info("계절밥상 메뉴 크롤링 시작 - %s", today)
     url = "https://www.sejong.ac.kr/kor/unilife/cafeteria-info.do"
-    params = {"mode": "getMenuList", "cafeCd": "202"}
+    params = {"mode": "getMenuList", "placeId": "1"}  # 파라미터 변경
 
     try:
         res = requests.get(url, params=params, timeout=5)
@@ -98,37 +97,25 @@ def fetch_gyejeol_lunch():
         logger.error("계절밥상 API 호출 실패: %s", e)
         return []
 
+    # 오늘 중식 필터링
     today_item = next(
-        (item for item in data.get("items", []) if item.get("startDay") == today),
+        (item for item in data.get("items", [])
+         if item.get("menuDate") == today and item.get("mealName") == "중식"),
         None,
     )
     if not today_item:
-        logger.warning("계절밥상 오늘(%s) 메뉴 없음", today)
-        _cache["date"] = today  # 캐시 저장
+        logger.warning("계절밥상 오늘(%s) 중식 메뉴 없음", today)
+        _cache["date"] = today
         _cache["menus"] = []
         return []
 
-    html = today_item.get("menuInfo", "")
-    soup = BeautifulSoup(html, "html.parser")
-
-    divs = soup.find_all("div", style=lambda s: s and "margin-bottom:10px" in s)
-    for div in divs:
-        label = div.find("span", style=lambda s: s and "E54460" in s)
-        if label and "중식" in label.get_text():
-            menu_div = div.find("div", style=lambda s: s and "padding:11px" in s)
-            if menu_div:
-                raw = menu_div.get_text(separator=" ")
-                items = [m.strip() for m in raw.split("·") if m.strip()]
-                _cache["date"] = today  # 캐시 저장
-                _cache["menus"] = items
-                return items
-            break
-
-    logger.warning("계절밥상 중식 블록 파싱 실패")
-    _cache["date"] = today  # 캐시 저장
-    _cache["menus"] = []
-
-    return []
+    # menuName에서 · 기준으로 파싱
+    raw = today_item.get("menuName", "")
+    items = [m.strip() for m in raw.split("·") if m.strip()]
+    logger.info("계절밥상 중식 파싱 성공: %s", items)
+    _cache["date"] = today
+    _cache["menus"] = items
+    return items
 
 # ─────────────────────────────────────────
 # 전체 메뉴 풀 구성
@@ -212,7 +199,7 @@ def handle_lunch(ack, respond, body):
             lines.append(f"      {composition_str}")
 
     # 계절밥상 없는 날 안내
-    if not any(p["restaurant"] == "계절밥상" for p in picks):
+    if not any(p["restaurant"] == "계절밥상" for p in pool):
         lines.append("\n※ 오늘 계절밥상 메뉴가 홈페이지에 없어요.")
 
     lines.append("\n※ 메뉴 구성 및 가격은 실제와 다를 수 있어요.")
