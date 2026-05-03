@@ -30,7 +30,7 @@ logging.basicConfig(level=logging.INFO, handlers=[file_handler, stream_handler])
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────
-# 2일 지난 로그 자동 삭제 (매일 자정)
+# 7일 지난 로그 자동 삭제 (매일 자정)
 # ─────────────────────────────────────────
 def cleanup_old_logs():
     log_file = "lunch_bot.log"
