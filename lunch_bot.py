@@ -1,215 +1,91 @@
-import logging
-import os
-import random
-import json
-import requests
 import ssl
 import schedule
 import time
 import threading
 from datetime import datetime, timedelta
+import logging
+
+import config  # 로깅 + 환경변수 초기화
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
-from dotenv import load_dotenv
+from handlers import register_handlers
+from crawler import refresh_cache, get_weekly_cache
 
 ssl._create_default_https_context = ssl.create_default_context
-load_dotenv()
 
-# ─────────────────────────────────────────
-# 로깅 설정
-# ─────────────────────────────────────────
-file_handler = logging.FileHandler("lunch_bot.log")
-file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
-
-stream_handler = logging.StreamHandler()
-stream_handler.setLevel(logging.INFO)   # 터미널엔 INFO 이상 출력
-stream_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
-
-logging.basicConfig(level=logging.INFO, handlers=[file_handler, stream_handler])
 logger = logging.getLogger(__name__)
-
-# ─────────────────────────────────────────
-# 7일 지난 로그 자동 삭제 (매일 자정)
-# ─────────────────────────────────────────
-def cleanup_old_logs():
-    log_file = "lunch_bot.log"
-    if not os.path.exists(log_file):
-        return
-
-    cutoff = datetime.now() - timedelta(days=7)
-    kept_lines = []
-
-    with open(log_file, "r", encoding="utf-8") as f:
-        for line in f:
-            try:
-                # 로그 맨 앞의 날짜 파싱
-                log_date = datetime.strptime(line[:19], "%Y-%m-%d %H:%M:%S")
-                if log_date >= cutoff:
-                    kept_lines.append(line)
-            except ValueError:
-                kept_lines.append(line)  # 날짜 파싱 실패한 줄은 유지
-
-    with open(log_file, "w", encoding="utf-8") as f:
-        f.writelines(kept_lines)
-
-    logger.info("로그 정리 완료 - %s 이전 로그 삭제", cutoff.strftime("%Y-%m-%d"))
-
-
-def schedule_cleanup():
-    schedule.every().day.at("00:00").do(cleanup_old_logs)
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
 
 # ─────────────────────────────────────────
 # Slack 앱 초기화
 # ─────────────────────────────────────────
-app = App(token=os.environ["SLACK_BOT_TOKEN"])
+app = App(token=config.SLACK_BOT_TOKEN)
+register_handlers(app)
+
 
 # ─────────────────────────────────────────
-# 고정 메뉴 로드 (menus.json)
+# 7일 지난 로그 자동 삭제
 # ─────────────────────────────────────────
-with open("menus.json", "r", encoding="utf-8") as f:
-    FIXED_MENUS = json.load(f)
-
-# ─────────────────────────────────────────
-# 계절밥상 오늘 중식 메뉴 크롤링
-# ─────────────────────────────────────────
-_cache = {"date": None, "menus": []}
-
-def fetch_gyejeol_lunch():
-    today = datetime.now().strftime("%Y-%m-%d")  # 형식 변경
-
-    if _cache["date"] == today:
-        logger.info("계절밥상 캐시 hit - %s", today)
-        return _cache["menus"]
-
-    logger.info("계절밥상 메뉴 크롤링 시작 - %s", today)
-    url = "https://www.sejong.ac.kr/kor/unilife/cafeteria-info.do"
-    params = {"mode": "getMenuList", "placeId": "1"}  # 파라미터 변경
-
-    try:
-        res = requests.get(url, params=params, timeout=5)
-        res.raise_for_status()
-        data = res.json()
-    except Exception as e:
-        logger.error("계절밥상 API 호출 실패: %s", e)
-        return []
-
-    # 오늘 중식 필터링
-    today_item = next(
-        (item for item in data.get("items", [])
-         if item.get("menuDate") == today and item.get("mealName") == "중식"),
-        None,
-    )
-    if not today_item:
-        logger.warning("계절밥상 오늘(%s) 중식 메뉴 없음", today)
-        _cache["date"] = today
-        _cache["menus"] = []
-        return []
-
-    # menuName에서 · 기준으로 파싱
-    raw = today_item.get("menuName", "")
-    items = [m.strip() for m in raw.split("·") if m.strip()]
-    logger.info("계절밥상 중식 파싱 성공: %s", items)
-    _cache["date"] = today
-    _cache["menus"] = items
-    return items
-
-# ─────────────────────────────────────────
-# 전체 메뉴 풀 구성
-# ─────────────────────────────────────────
-def build_menu_pool():
-    pool = []
-
-    for item in FIXED_MENUS.get("산들푸드", []):
-        price_str = f" ({item['price']:,}원)" if item.get("price") else ""
-        pool.append({
-            "restaurant": "산들푸드",
-            "name": item["name"] + price_str,
-            "composition": None,
-        })
-
-    for item in FIXED_MENUS.get("진관키친", []):
-        price_str = f" ({item['price']:,}원)" if item.get("price") else ""
-        pool.append({
-            "restaurant": "진관키친",
-            "name": item["name"] + price_str,
-            "composition": None,
-        })
-
-    gyejeol_items = fetch_gyejeol_lunch()
-    if gyejeol_items:
-        pool.append({
-            "restaurant": "계절밥상",
-            "name": "중식 (7,000원)",
-            "composition": gyejeol_items,
-        })
-
-    return pool
-
-# ─────────────────────────────────────────
-# 식당별로 각 1개씩, 고정 순서로 추천
-# ─────────────────────────────────────────
-def pick_menus(pool):
-    by_restaurant = {}
-    for item in pool:
-        by_restaurant.setdefault(item["restaurant"], []).append(item)
-
-    order = ["산들푸드", "진관키친", "계절밥상"]
-    picks = []
-    for restaurant in order:
-        if restaurant in by_restaurant:
-            picks.append(random.choice(by_restaurant[restaurant]))
-
-    return picks[:3]
-
-# ─────────────────────────────────────────
-# /학식 슬래시 커맨드
-# ─────────────────────────────────────────
-@app.command("/학식")
-def handle_lunch(ack, respond, body):
-    ack()
-    user_name = body.get("user_name", "unknown")
-    logger.info("/학식 요청 - 유저: %s", user_name)
-
-    pool = build_menu_pool()
-
-    # 계절밥상 없어도 2개 식당으로 추천
-    if len(pool) == 0:
-        logger.error("메뉴 풀이 비어있음")
-        respond("메뉴를 불러오는 데 실패했어요 😢 잠시 후 다시 시도해주세요.")
+def cleanup_old_logs():
+    log_file = "lunch_bot.log"
+    import os
+    if not os.path.exists(log_file):
         return
+    cutoff = datetime.now() - timedelta(days=7)
+    kept_lines = []
+    with open(log_file, "r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                log_date = datetime.strptime(line[:19], "%Y-%m-%d %H:%M:%S")
+                if log_date >= cutoff:
+                    kept_lines.append(line)
+            except ValueError:
+                kept_lines.append(line)
+    with open(log_file, "w", encoding="utf-8") as f:
+        f.writelines(kept_lines)
+    logger.info("로그 정리 완료 - %s 이전 로그 삭제", cutoff.strftime("%Y-%m-%d"))
 
-    picks = pick_menus(pool)
 
-    today_str = datetime.now().strftime("%m월 %d일")
-    lines = [f"🍱 *{today_str} 오늘의 점심 추천 3선!*\n"]
+# ─────────────────────────────────────────
+# 주간메뉴 없으면 재시도
+# ─────────────────────────────────────────
+def refresh_if_no_weekly():
+    weekly = get_weekly_cache()
+    today = datetime.now().strftime("%Y-%m-%d")
+    # 주간메뉴가 없거나 이번 주 이후 데이터가 없으면 재크롤링
+    if not weekly or not any(date >= today for date in weekly.keys()):
+        logger.info("주간메뉴 없음 - 재크롤링 시도")
+        refresh_cache()
+    else:
+        logger.debug("주간메뉴 이미 캐시됨 - 스킵")
 
-    emoji_list = ["1️⃣", "2️⃣", "3️⃣"]
-    restaurant_emoji = {"계절밥상": "🥗", "산들푸드": "🍱", "진관키친": "🍜"}
 
-    for i, pick in enumerate(picks):
-        r_emoji = restaurant_emoji.get(pick["restaurant"], "🍽️")
-        lines.append(f"{emoji_list[i]} {r_emoji} *{pick['restaurant']}* - {pick['name']}")
-        if pick["composition"]:
-            chunks = [pick["composition"][j:j+3] for j in range(0, len(pick["composition"]), 3)]
-            composition_str = "\n      ".join(" · ".join(chunk) for chunk in chunks)
-            lines.append(f"      {composition_str}")
+# ─────────────────────────────────────────
+# 스케줄 등록
+# ─────────────────────────────────────────
+def schedule_jobs():
+    # 로그 정리 + 캐시 갱신 - 매일 자정
+    schedule.every().day.at("00:00").do(cleanup_old_logs)
+    schedule.every().day.at("00:00").do(refresh_cache)
 
-    # 계절밥상 없는 날 안내
-    if not any(p["restaurant"] == "계절밥상" for p in pool):
-        lines.append("\n※ 오늘 계절밥상 메뉴가 홈페이지에 없어요.")
+    # 월요일 집중 시도 (주간메뉴 없으면 재시도)
+    schedule.every().monday.at("06:00").do(refresh_if_no_weekly)
+    schedule.every().monday.at("07:00").do(refresh_if_no_weekly)
+    schedule.every().monday.at("08:00").do(refresh_if_no_weekly)
+    schedule.every().monday.at("09:00").do(refresh_if_no_weekly)
 
-    lines.append("\n※ 메뉴 구성 및 가격은 실제와 다를 수 있어요.")
-    lines.append("\n맛있는 점심 되세요! 😋")
-    respond("\n".join(lines))
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
+
 
 # ─────────────────────────────────────────
 # 앱 실행
 # ─────────────────────────────────────────
 if __name__ == "__main__":
-    threading.Thread(target=schedule_cleanup, daemon=True).start()
-    handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
+    # 시작 시 미리 크롤링
+    refresh_cache()
+
+    threading.Thread(target=schedule_jobs, daemon=True).start()
+    logger.info("슬랙봇 시작")
+    handler = SocketModeHandler(app, config.SLACK_APP_TOKEN)
     handler.start()
