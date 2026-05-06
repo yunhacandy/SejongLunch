@@ -4,6 +4,7 @@ import time
 import threading
 from datetime import datetime, timedelta
 import logging
+import os
 
 import config  # 로깅 + 환경변수 초기화
 from slack_bolt import App
@@ -23,14 +24,13 @@ register_handlers(app)
 
 
 # ─────────────────────────────────────────
-# 7일 지난 로그 자동 삭제
+# 5일 지난 로그 자동 삭제
 # ─────────────────────────────────────────
 def cleanup_old_logs():
     log_file = "lunch_bot.log"
-    import os
     if not os.path.exists(log_file):
         return
-    cutoff = datetime.now() - timedelta(days=7)
+    cutoff = datetime.now() - timedelta(days=5)
     kept_lines = []
     with open(log_file, "r", encoding="utf-8") as f:
         for line in f:
