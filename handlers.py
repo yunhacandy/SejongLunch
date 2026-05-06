@@ -10,6 +10,7 @@ from blocks import (
 )
 from crawler import fetch_gyejeol
 from menus import build_menu_pool, pick_menus
+from stats import record_user
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ def register_handlers(app):
         menus = fetch_gyejeol("중식")  # 한 번만 호출 후 blocks에 넘김
         logger.info("/학식 요청 - 유저: %s (계절밥상 중식 %s)", user_name,
                     "캐시" if menus else "메뉴없음")
+        record_user(user_name)
         respond(blocks=build_main_menu_blocks(menus=menus), text="학식 메뉴")
 
     # ─────────────────────────────────────────
