@@ -28,6 +28,13 @@ SLACK_APP_TOKEN = os.environ.get("SLACK_APP_TOKEN")
 if not SLACK_BOT_TOKEN or not SLACK_APP_TOKEN:
     raise ValueError(".env 파일에 SLACK_BOT_TOKEN, SLACK_APP_TOKEN 을 설정해주세요.")
 
+# GA4
+GA4_MEASUREMENT_ID = os.environ.get("GA4_MEASUREMENT_ID")
+GA4_API_SECRET = os.environ.get("GA4_API_SECRET")
+
+if not SLACK_BOT_TOKEN or not SLACK_APP_TOKEN:
+    raise ValueError(".env 파일에 GA4_MEASUREMENT_ID, GA4_API_SECRET 을 설정해주세요.")
+
 # ─────────────────────────────────────────
 # 가격 필터 기준 (원)
 # ─────────────────────────────────────────

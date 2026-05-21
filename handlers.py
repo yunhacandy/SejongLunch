@@ -11,6 +11,7 @@ from blocks import (
 from crawler import fetch_gyejeol
 from menus import build_menu_pool, pick_menus
 from stats import record_user
+from analytics import send_event
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ def register_handlers(app):
         logger.info("/학식 요청 - 유저: %s (계절밥상 중식 %s)", user_name,
                     "캐시" if menus else "메뉴없음")
         record_user(user_name)
+        send_event(user_name, "view_main")  # GA4 이벤트
         respond(blocks=build_main_menu_blocks(menus=menus), text="학식 메뉴")
 
     # ─────────────────────────────────────────
@@ -38,6 +40,7 @@ def register_handlers(app):
         ack()
         user_name = body.get("user", {}).get("username", "unknown")
         logger.info("랜덤 추천 요청 - 유저: %s", user_name)
+        send_event(user_name, "click_random")
         pool = build_menu_pool()
         if not pool:
             respond(text="메뉴를 불러오는 데 실패했어요 😢 잠시 후 다시 시도해주세요.")
@@ -49,6 +52,7 @@ def register_handlers(app):
     def action_back(ack, respond, body):
         ack()
         user_name = body.get("user", {}).get("username", "unknown")
+        send_event(user_name, "back_to_main")
         logger.info("처음으로 - 유저: %s", user_name)
         menus = fetch_gyejeol("중식")  # 한 번만 호출 후 blocks에 넘김
         respond(blocks=build_main_menu_blocks(menus=menus), text="학식 메뉴")
@@ -57,6 +61,7 @@ def register_handlers(app):
     def action_gyejeol_dinner(ack, respond, body):
         ack()
         user_name = body.get("user", {}).get("username", "unknown")
+        send_event(user_name, "view_gyejeol", {"meal_type": "dinner"})
         logger.info("계절밥상 석식 조회 - 유저: %s", user_name)
         respond(blocks=build_gyejeol_blocks("석식"), text="계절밥상 석식")
 
@@ -64,6 +69,7 @@ def register_handlers(app):
     def action_sandle(ack, respond, body):
         ack()
         user_name = body.get("user", {}).get("username", "unknown")
+        send_event(user_name, "view_restaurant", {"restaurant": "sandle"})
         logger.info("산들푸드 조회 - 유저: %s", user_name)
         respond(blocks=build_restaurant_blocks("산들푸드", "🍱", "산들푸드"), text="산들푸드 메뉴")
 
@@ -71,6 +77,7 @@ def register_handlers(app):
     def action_jingwan(ack, respond, body):
         ack()
         user_name = body.get("user", {}).get("username", "unknown")
+        send_event(user_name, "view_restaurant", {"restaurant": "jingwan"})
         logger.info("진관키친 조회 - 유저: %s", user_name)
         respond(blocks=build_restaurant_blocks("진관키친", "🍜", "진관키친"), text="진관키친 메뉴")
 
@@ -78,6 +85,7 @@ def register_handlers(app):
     def action_weekly(ack, respond, body):
         ack()
         user_name = body.get("user", {}).get("username", "unknown")
+        send_event(user_name, "view_weekly")
         logger.info("주간메뉴 조회 - 유저: %s", user_name)
         respond(blocks=build_weekly_blocks(), text="주간 메뉴")
 
