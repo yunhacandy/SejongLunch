@@ -5,7 +5,7 @@ from config import GA4_MEASUREMENT_ID, GA4_API_SECRET
 
 logger = logging.getLogger(__name__)
 
-GA4_URL = "https://www.google-analytics.com/mp/collect"
+GA4_URL = "https://www.google-analytics.com/debug/mp/collect"
 
 
 def anonymize_user_id(user_id: str) -> str:
@@ -44,6 +44,7 @@ def send_event(user_id, event_name, params=None):
             timeout=3
         )
         logger.debug("GA4 이벤트 전송 - %s (%s)", event_name, res.status_code)
+        logger.info("GA4 응답: %s %s", res.status_code, res.text)
 
     except Exception as e:
         logger.error("GA4 이벤트 전송 실패: %s", e)
