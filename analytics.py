@@ -17,6 +17,8 @@ def anonymize_user_id(user_id: str) -> str:
 
 
 def send_event(user_id, event_name, params=None):
+    logger.info("GA4 함수 진입")
+
     """GA4로 익명화된 이벤트 전송"""
     if not GA4_MEASUREMENT_ID or not GA4_API_SECRET:
         return

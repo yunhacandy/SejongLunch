@@ -32,7 +32,7 @@ if not SLACK_BOT_TOKEN or not SLACK_APP_TOKEN:
 GA4_MEASUREMENT_ID = os.environ.get("GA4_MEASUREMENT_ID")
 GA4_API_SECRET = os.environ.get("GA4_API_SECRET")
 
-if not SLACK_BOT_TOKEN or not SLACK_APP_TOKEN:
+if not GA4_MEASUREMENT_ID or not GA4_API_SECRET:
     raise ValueError(".env 파일에 GA4_MEASUREMENT_ID, GA4_API_SECRET 을 설정해주세요.")
 
 # ─────────────────────────────────────────
