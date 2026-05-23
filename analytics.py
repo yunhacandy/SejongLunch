@@ -1,25 +1,26 @@
 import logging
 import hashlib
 import requests
+import time
 from config import GA4_MEASUREMENT_ID, GA4_API_SECRET
 
 logger = logging.getLogger(__name__)
 
-GA4_URL = "https://www.google-analytics.com/debug/mp/collect"
+GA4_URL = "https://www.google-analytics.com/mp/collect"
 
 
 def anonymize_user_id(user_id: str) -> str:
     """사용자 식별자를 SHA-256으로 익명화"""
     if not user_id:
         user_id = "unknown"
-
-    return hashlib.sha256(user_id.encode("utf-8")).hexdigest()
+    hash_val = int(hashlib.sha256(user_id.encode()).hexdigest(), 16) % (10**9)
+    # 고정된 seed 값으로 항상 동일한 client_id 생성
+    return f"{hash_val}.{hash_val % 10000}"
 
 
 def send_event(user_id, event_name, params=None):
-    logger.info("GA4 함수 진입")
-
     """GA4로 익명화된 이벤트 전송"""
+    logger.debug("GA4 이벤트 전송 시도 - %s: %s", event_name, user_id)
     if not GA4_MEASUREMENT_ID or not GA4_API_SECRET:
         return
 
