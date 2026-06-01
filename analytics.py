@@ -45,7 +45,6 @@ def send_event(user_id, event_name, params=None):
             timeout=3
         )
         logger.debug("GA4 이벤트 전송 - %s (%s)", event_name, res.status_code)
-        logger.info("GA4 응답: %s %s", res.status_code, res.text)
 
     except Exception as e:
         logger.error("GA4 이벤트 전송 실패: %s", e)
